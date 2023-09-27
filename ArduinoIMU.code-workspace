@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"name": "ArduinoIMU",
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"hw_ints.h": "c",
+			"udma.h": "c",
+			"pin_map.h": "c",
+			"hw_can.h": "c",
+			"hw_types.h": "c",
+			"*.tpp": "cpp"
+		}
+	}
+}
