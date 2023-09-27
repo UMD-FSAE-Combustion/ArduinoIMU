@@ -31,7 +31,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(-1, 0x28, &Wire);
 
 int intConvert(float x) {
 
-  int num = ((static_cast<int>(x + 19.62)) * (1672));
+  int num = ((static_cast<int>(x + 39.24)) * (1670));
   return num;
 }
 
@@ -68,13 +68,13 @@ String binToHex(String bin) {
             int SubNum = subStr.toInt();
 
             switch (SubNum) {
-            case (0):            //0000
+            case (0):             //0000
                 hex += "0"; break;
-            case (1):            //0001
+            case (1):             //0001
                 hex += "1"; break;
-            case (10):            //0010
+            case (10):             //0010
                 hex += "2";    break;
-            case (11):            //0011
+            case (11):             //0011
                 hex += "3"; break;
             case (100):            //0100
                 hex += "4"; break;
@@ -117,13 +117,13 @@ else {
             int SubNum = subStr.toInt();
 
             switch (SubNum) {
-            case (0):            //0000
+            case (0):              //0000
                 hex += "0"; break;
-            case (1):            //0001
+            case (1):              //0001
                 hex += "1"; break;
-            case (10):            //0010
+            case (10):             //0010
                 hex += "2";    break;
-            case (11):            //0011
+            case (11):             //0011
                 hex += "3"; break;
             case (100):            //0100
                 hex += "4"; break;
@@ -223,27 +223,27 @@ void loop(void) {
 
   // Display the floating point data
   Serial.print("X: ");
-  Serial.print(xVal_Hex);
+  Serial.print(binToHex(decToBinary(intConvert(accelerometer.x()))));
   Serial.print(" Y: ");
-  Serial.print(accelerometer.y());
+  Serial.print(binToHex(decToBinary(intConvert(accelerometer.y()))));
   Serial.print(" Z: ");
-  Serial.print(accelerometer.z());
+  Serial.print(binToHex(decToBinary(intConvert(accelerometer.z()))));
   Serial.print("\t\t");
 
   Serial.print("X: ");
-  Serial.print(gyroscope.x());
+  Serial.print(binToHex(decToBinary(intConvert(gyroscope.x()))));
   Serial.print(" Y: ");
-  Serial.print(gyroscope.y());
+  Serial.print(binToHex(decToBinary(intConvert(gyroscope.y()))));
   Serial.print(" Z: ");
-  Serial.print(gyroscope.z());
+  Serial.print(binToHex(decToBinary(intConvert(gyroscope.z()))));
   Serial.print("\t\t");
 
   Serial.print("X: ");
-  Serial.print(linAccel.x());
+  Serial.print(binToHex(decToBinary(intConvert(linAccel.x()))));
   Serial.print(" Y: ");
-  Serial.print(linAccel.y());
+  Serial.print(binToHex(decToBinary(intConvert(linAccel.y()))));
   Serial.print(" Z: ");
-  Serial.print(linAccel.z());
+  Serial.print(binToHex(decToBinary(intConvert(linAccel.z()))));
   Serial.print("\t\t");
 
 
