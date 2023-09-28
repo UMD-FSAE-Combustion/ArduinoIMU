@@ -20,38 +20,53 @@
    2015/MAR/03  - First release (KTOWN)
 */
 
-/* Set the delay between fresh samples */
-#define BNO055_SAMPLERATE_DELAY_MS (100)
+/* Definitions */
+// BNO
+#define BNO_ADDR 0x28
+#define BNO055_SAMPLERATE_DELAY_MS (100) //delay between samples
+//CAN setup
+#define BAUD        1000000     //1000000 for ECU, 250000 for Arduino
+#define CANRXID     0x640
+#define CANTXID1    0x5BD
+#define CANTXID2    0x5BE
+// conversion constants
+#define ACC_CONST   819.1875    //Approx. (2^16 - 1) / 80 - CHANGE THIS VALUE
+#define GYR_CONST   91.0208     //Approx. (2^16 - 1) / 720 - CHANGE THIS VALUE
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 // Check I2C device address and correct line below (by default address is 0x29 or 0x28)
 //                                   id, address
-Adafruit_BNO055 bno = Adafruit_BNO055(-1, 0x28, &Wire);
+Adafruit_BNO055 bno = Adafruit_BNO055(-1, BNO_ADDR, &Wire);
 
 
 
 int intConvert(float x) {
 
-  int num = ((static_cast<int>(x + 39.24)) * (1670));
+  int num = ((static_cast<int>(x + 39.24)) * (ACC_CONST));
   return num;
 }
 
-String decToBinary(int n) {
+String decToBin(int n) {
   // array to store binary number
-  int binaryNum[32];
+  int binaryNum[16];
+  for (int i = 0; i < 16; i++){
+    binaryNum[i] = 0; // initialize to 0
+  }
 
   // counter for binary array
-  int i = 0;
+  int count = 0;
   while (n > 0) {
 
     // storing remainder in binary array
-    binaryNum[i] = n % 2;
+    binaryNum[count] = n % 2;
     n = n / 2;
-    i++;
+    count++;
   }
 
   // printing binary array in reverse order
   String BinNum = "";
-  for (int j = i - 1; j >= 0; j--)
+  for (int j = count - 1; j >= 0; j--)
     BinNum += binaryNum[j];
 
   return BinNum;
@@ -217,33 +232,33 @@ void loop(void) {
 
   int xVal = intConvert(accelerometer.x());
   Serial.println(xVal);
-  String xVal_Bin = decToBinary(xVal);
+  String xVal_Bin = decToBin(xVal);
   String xVal_Hex = binToHex(xVal_Bin);
 
 
   // Display the floating point data
   Serial.print("X: ");
-  Serial.print(binToHex(decToBinary(intConvert(accelerometer.x()))));
+  Serial.print(binToHex(decToBin(intConvert(accelerometer.x()))));
   Serial.print(" Y: ");
-  Serial.print(binToHex(decToBinary(intConvert(accelerometer.y()))));
+  Serial.print(binToHex(decToBin(intConvert(accelerometer.y()))));
   Serial.print(" Z: ");
-  Serial.print(binToHex(decToBinary(intConvert(accelerometer.z()))));
+  Serial.print(binToHex(decToBin(intConvert(accelerometer.z()))));
   Serial.print("\t\t");
 
   Serial.print("X: ");
-  Serial.print(binToHex(decToBinary(intConvert(gyroscope.x()))));
+  Serial.print(binToHex(decToBin(intConvert(gyroscope.x()))));
   Serial.print(" Y: ");
-  Serial.print(binToHex(decToBinary(intConvert(gyroscope.y()))));
+  Serial.print(binToHex(decToBin(intConvert(gyroscope.y()))));
   Serial.print(" Z: ");
-  Serial.print(binToHex(decToBinary(intConvert(gyroscope.z()))));
+  Serial.print(binToHex(decToBin(intConvert(gyroscope.z()))));
   Serial.print("\t\t");
 
   Serial.print("X: ");
-  Serial.print(binToHex(decToBinary(intConvert(linAccel.x()))));
+  Serial.print(binToHex(decToBin(intConvert(linAccel.x()))));
   Serial.print(" Y: ");
-  Serial.print(binToHex(decToBinary(intConvert(linAccel.y()))));
+  Serial.print(binToHex(decToBin(intConvert(linAccel.y()))));
   Serial.print(" Z: ");
-  Serial.print(binToHex(decToBinary(intConvert(linAccel.z()))));
+  Serial.print(binToHex(decToBin(intConvert(linAccel.z()))));
   Serial.print("\t\t");
 
 
