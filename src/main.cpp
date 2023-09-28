@@ -1,297 +1,178 @@
-#include <string.h>
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
+#include <Arduino.h>
+#include <FlexCAN_T4.h>
 #include <Adafruit_BNO055.h>
-#include <utility/imumaths.h>
+#include <SPI.h>
+#include <TeensyThreads.h>
 
 
-
-/* This driver reads raw data from the BNO055
-
-   Connections
-   ===========
-   Connect SCL to analog 5
-   Connect SDA to analog 4
-   Connect VDD to 3.3V DC
-   Connect GROUND to common ground
-
-   History
-   =======
-   2015/MAR/03  - First release (KTOWN)
-*/
-
-/* Definitions */
-// BNO
-#define BNO_ADDR 0x28
-#define BNO055_SAMPLERATE_DELAY_MS (100) //delay between samples
-//CAN setup
-#define BAUD        1000000     //1000000 for ECU, 250000 for Arduino
+// PIN, BAUDRATE and CAN ID definitions
+#define BAUD        1000000     // 1000000 for ECU, 250000 for Arduino
 #define CANRXID     0x640
 #define CANTXID1    0x5BD
 #define CANTXID2    0x5BE
-// conversion constants
-#define ACC_CONST   819.1875    //Approx. (2^16 - 1) / 80 - CHANGE THIS VALUE
-#define GYR_CONST   91.0208     //Approx. (2^16 - 1) / 720 - CHANGE THIS VALUE
-////////////////////////////////////////////////////////////////////////////////////////////////
+// BNO055 AND CTL REGISTER ADDRESSES
+#define BNO_ADDR    0x28
+#define BNO_OPR     0x3D
+#define BNO_PGSEL   0x07
+#define SET_ACC     0x08
+#define SET_GYRO    0x0A
+// CONSTANTS FOR FLOAT->UINT CONVERSION
+#define ACC_CONST   100.0
+#define GYR_CONST   16.0
 
 
-// Check I2C device address and correct line below (by default address is 0x29 or 0x28)
-//                                   id, address
-Adafruit_BNO055 bno = Adafruit_BNO055(-1, BNO_ADDR, &Wire);
+// Intermediate BNO data structs
+//typedef struct bno_raw { float x, y, z; };
+//typedef struct bno_data { bno_raw accel, gyro; };
+
+// CAN 16-bit struct, gyro struct and accel struct
+typedef struct CANint16_t { unsigned int top:8, bot:8; };
+typedef struct CANDBtx_imu { CANint16_t x, y, z; };
 
 
+//Declare everything global;
+FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> Can0;
 
-int intConvert(float x) {
+Adafruit_BNO055 bno = Adafruit_BNO055(55, BNO_ADDR);
 
-  int num = ((static_cast<int>(x + 39.24)) * (ACC_CONST));
-  return num;
-}
+//bno_data bno_sensor;
 
-String decToBin(int n) {
-  // array to store binary number
-  int binaryNum[16];
-  for (int i = 0; i < 16; i++){
-    binaryNum[i] = 0; // initialize to 0
-  }
+CANDBtx_imu CANDBtx_accel;
+CANDBtx_imu CANDBtx_gyro;
 
-  // counter for binary array
-  int count = 0;
-  while (n > 0) {
-
-    // storing remainder in binary array
-    binaryNum[count] = n % 2;
-    n = n / 2;
-    count++;
-  }
-
-  // printing binary array in reverse order
-  String BinNum = "";
-  for (int j = count - 1; j >= 0; j--)
-    BinNum += binaryNum[j];
-
-  return BinNum;
-}
+CAN_message_t txmsg;
 
 
-String binToHex(String bin) {
-
-    String hex = "0x";
-    if (bin.length() % 4 == 0) {
-        for (int i = 0; i < bin.length(); i += 4) {
-
-            String subStr = bin.substring(i, 4);
-            int SubNum = subStr.toInt();
-
-            switch (SubNum) {
-            case (0):             //0000
-                hex += "0"; break;
-            case (1):             //0001
-                hex += "1"; break;
-            case (10):             //0010
-                hex += "2";    break;
-            case (11):             //0011
-                hex += "3"; break;
-            case (100):            //0100
-                hex += "4"; break;
-            case (101):            //0101
-                hex += "5"; break;
-            case (110):            //0110
-                hex += "6"; break;
-            case (111):            //0111
-                hex += "7"; break;
-            case (1000):
-                hex += "8"; break;
-            case (1001):
-                hex += "9"; break;
-            case (1010):
-                hex += "A"; break;
-            case (1011):
-                hex += "B"; break;
-            case (1100):
-                hex += "C"; break;
-            case (1101):
-                hex += "D"; break;
-            case (1110):
-                hex += "E"; break;
-            case (1111):
-                hex += "F"; break;
-            default:
-                break;
-            }
-        }
-    }
-else {
-        int padding = bin.length() % 4;
-        for (int i = 0; i < (4 - padding); i++)
-            bin = "0" + bin;
+// put function declarations here:
+void taskCANTransmit();
+bool bno_write(uint8_t i2c_addr, uint8_t reg, uint8_t data);
+void convert_to_int(float source, CANint16_t &dest, bool isAccel);
 
 
-        for (int i = 0; i < bin.length(); i += 4) {
+void setup() {
 
-            String subStr = bin.substring(i, 4);
-            int SubNum = subStr.toInt();
-
-            switch (SubNum) {
-            case (0):              //0000
-                hex += "0"; break;
-            case (1):              //0001
-                hex += "1"; break;
-            case (10):             //0010
-                hex += "2";    break;
-            case (11):             //0011
-                hex += "3"; break;
-            case (100):            //0100
-                hex += "4"; break;
-            case (101):            //0101
-                hex += "5"; break;
-            case (110):            //0110
-                hex += "6"; break;
-            case (111):            //0111
-                hex += "7"; break;
-            case (1000):
-                hex += "8"; break;
-            case (1001):
-                hex += "9"; break;
-            case (1010):
-                hex += "A"; break;
-            case (1011):
-                hex += "B"; break;
-            case (1100):
-                hex += "C"; break;
-            case (1101):
-                hex += "D"; break;
-            case (1110):
-                hex += "E"; break;
-            case (1111):
-                hex += "F"; break;
-            default:
-                break;
-            }
-        }
-    }
-
-    return hex;
-}
-
-
-
-/**************************************************************************/
-/*
-    Arduino setup function (automatically called at startup)
-*/
-/**************************************************************************/
-void setup(void) {
   Serial.begin(115200);
 
-  while (!Serial) delay(10);  // wait for serial port to open!
+  // put your setup code here, to run once:
 
-  Serial.println("Orientation Sensor Raw Data Test");
-  Serial.println("");
-
-  /* Initialise the sensor */
-  if (!bno.begin()) {
+  if(!bno.begin()) {
     /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while (1);
+    Serial.print("Oops, no BNO055 detected ... Check your wiring or I2C ADDR.");
+    while(1);
   }
 
-  delay(1000);
+  //----------Configure BNO055----------//
+  /*if(!bno_write(BNO_ADDR, BNO_PGSEL, 0x01)) {
+    Serial.print("Configuring sensitivity ranges ...");
+    while(1);
+  }
+  if(!bno_write(BNO_ADDR, SET_ACC, 0x0C)) {
+    Serial.print("/nSetting accel range.");
+    while(1);
+  }
+  if(!bno_write(BNO_ADDR, SET_GYRO, 0x32)) {
+    Serial.print("/nSetting gyro range.");
+    while(1);
+  }
+  if(!bno_write(BNO_ADDR, BNO_PGSEL, 0x00)) {
+    Serial.print("/nWrapping up ...");
+    while(1);
+  }*/
 
-  /* Display the current temperature */
-  int8_t temp = bno.getTemp();
-  Serial.print("Current Temperature: ");
-  Serial.print(temp);
-  Serial.println(" C");
-  Serial.println("");
-
-  bno.setExtCrystalUse(true);
-
-  Serial.println("Calibration status values: 0=uncalibrated, 3=fully calibrated");
-
+  // Starts CAN comms at a select Baudrate of the ECU
+  Can0.begin();
+  Can0.setBaudRate(BAUD);
+  threads.addThread(taskCANTransmit, 0, 512, 0);
 }
 
-/**************************************************************************/
-/*
-    Arduino loop function, called once 'setup' is complete (your own code
-    should go here)
-*/
-/**************************************************************************/
-void loop(void) {
-  // Possible vector values can be:
-  // - VECTOR_ACCELEROMETER - m/s^2
-  // - VECTOR_MAGNETOMETER  - uT
-  // - VECTOR_GYROSCOPE     - rad/s
-  // - VECTOR_EULER         - degrees
-  // - VECTOR_LINEARACCEL   - m/s^2
-  // - VECTOR_GRAVITY       - m/s^2
 
-  //Sensor Outputs
-  imu::Vector<3> accelerometer = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
-  imu::Vector<3> gyroscope = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-  imu::Vector<3> linAccel = bno.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
+void loop()
+{
+  sensors_event_t event;
 
-  int xVal = intConvert(accelerometer.x());
-  Serial.println(xVal);
-  String xVal_Bin = decToBin(xVal);
-  String xVal_Hex = binToHex(xVal_Bin);
+  // Get linear acceleration data from IMU, convert to two 8-bit integers
+  bno.getEvent(&event, bno.VECTOR_LINEARACCEL);
+  Serial.print("\nX lin: ");
+  Serial.print(event.acceleration.x);
+  convert_to_int(event.acceleration.x, CANDBtx_accel.x, true);
+  convert_to_int(event.acceleration.y, CANDBtx_accel.y, true);
+  convert_to_int(event.acceleration.z, CANDBtx_accel.z, true);
+  Serial.print("\t");
+  Serial.print(CANDBtx_accel.x.top);
+  Serial.print("\t");
+  Serial.print(CANDBtx_accel.x.bot);
 
 
-  // Display the floating point data
-  Serial.print("X: ");
-  Serial.print(binToHex(decToBin(intConvert(accelerometer.x()))));
-  Serial.print(" Y: ");
-  Serial.print(binToHex(decToBin(intConvert(accelerometer.y()))));
-  Serial.print(" Z: ");
-  Serial.print(binToHex(decToBin(intConvert(accelerometer.z()))));
-  Serial.print("\t\t");
+  // Get gyroscopic data from IMU, convert to two 8-bit integers
+  bno.getEvent(&event, bno.VECTOR_GYROSCOPE);
+  convert_to_int(event.gyro.x, CANDBtx_gyro.x, false);
+  convert_to_int(event.gyro.y, CANDBtx_gyro.y, false);
+  convert_to_int(event.gyro.z, CANDBtx_gyro.z, false);
 
-  Serial.print("X: ");
-  Serial.print(binToHex(decToBin(intConvert(gyroscope.x()))));
-  Serial.print(" Y: ");
-  Serial.print(binToHex(decToBin(intConvert(gyroscope.y()))));
-  Serial.print(" Z: ");
-  Serial.print(binToHex(decToBin(intConvert(gyroscope.z()))));
-  Serial.print("\t\t");
-
-  Serial.print("X: ");
-  Serial.print(binToHex(decToBin(intConvert(linAccel.x()))));
-  Serial.print(" Y: ");
-  Serial.print(binToHex(decToBin(intConvert(linAccel.y()))));
-  Serial.print(" Z: ");
-  Serial.print(binToHex(decToBin(intConvert(linAccel.z()))));
-  Serial.print("\t\t");
+  delay(100);
+}
 
 
+void taskCANTransmit()
+{
+  while(1) {
+  CAN_message_t msg[2];
+  // Assign Data to message 1
+  msg[0].id = CANTXID1;
+  msg[0].len = 8;
+  msg[0].buf[0] = CANDBtx_accel.x.top;
+  msg[0].buf[1] = CANDBtx_accel.x.bot;
+  msg[0].buf[2] = CANDBtx_accel.y.top;
+  msg[0].buf[3] = CANDBtx_accel.y.bot;
+  msg[0].buf[4] = CANDBtx_accel.z.top;
+  msg[0].buf[5] = CANDBtx_accel.z.bot;
+  msg[0].buf[6] = 0;
+  msg[0].buf[7] = 0;
+ 
+  // Assign Data to message 2
+  msg[1].len = 8;
+  msg[1].id = CANTXID2;
+  msg[1].buf[0] = CANDBtx_gyro.x.top;
+  msg[1].buf[1] = CANDBtx_gyro.x.bot;
+  msg[1].buf[2] = CANDBtx_gyro.y.top;
+  msg[1].buf[3] = CANDBtx_gyro.y.bot;
+  msg[1].buf[4] = CANDBtx_gyro.z.top;
+  msg[1].buf[5] = CANDBtx_gyro.z.bot;
+  msg[1].buf[6] = 0;
+  msg[1].buf[7] = 0;
+
+  // Send messages
+  Can0.write(msg[0]);
+  delay(100);
+  Can0.write(msg[1]);
+  }
+}
 
 
+///////////////////////////////////////////////////////////////////
+/*----------WRITE VALUES TO BNO SENSOR CONFIG REGISTERS----------*/
+///////////////////////////////////////////////////////////////////
+bool bno_write(uint8_t i2c_addr, uint8_t reg, uint8_t data)  // write one BNO register
+{
+  Wire.beginTransmission(i2c_addr);
+  Wire.write(reg);
+  Wire.write(data);
+  Wire.endTransmission(true);  // send stop
 
-  /*
-   // Quaternion data
-  imu::Quaternion quat = bno.getQuat();
-  Serial.print("qW: ");
-  Serial.print(quat.w(), 4);
-  Serial.print(" qX: ");
-  Serial.print(quat.x(), 4);
-  Serial.print(" qY: ");
-  Serial.print(quat.y(), 4);
-  Serial.print(" qZ: ");
-  Serial.print(quat.z(), 4);
-  Serial.print("\t\t");
-  */
+  return true;
+}
 
 
+///////////////////////////////////////////////////////////////////////
+/*----------CONVERT DATA TO 8-BIT INTEGERS FOR CAN TRANSMIT----------*/
+///////////////////////////////////////////////////////////////////////
+void convert_to_int(float bno_data, CANint16_t &dest, bool isAccel)
+{
+  short int_data;
 
-  /* Display calibration status for each sensor. */
-  uint8_t system, gyro, accel, mag = 0;
-  bno.getCalibration(&system, &gyro, &accel, &mag);
-  Serial.print("CALIBRATION: Sys=");
-  Serial.print(system, DEC);
-  Serial.print(" Gyro=");
-  Serial.print(gyro, DEC);
-  Serial.print(" Accel=");
-  Serial.print(accel, DEC);
-  Serial.print(" Mag=");
-  Serial.println(mag, DEC);
+  if (isAccel) int_data = static_cast<int16_t>(bno_data*ACC_CONST);
+  else int_data = static_cast<int16_t>(bno_data*GYR_CONST);
 
-  delay(BNO055_SAMPLERATE_DELAY_MS);
+  dest.bot = int_data;
+  dest.top = int_data >> 8;
 }
