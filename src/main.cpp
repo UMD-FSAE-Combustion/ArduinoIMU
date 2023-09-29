@@ -18,7 +18,7 @@
 #define SET_GYRO    0x0A
 // CONSTANTS FOR FLOAT->UINT CONVERSION
 #define ACC_CONST   100.0
-#define GYR_CONST   16.0
+#define GYR_CONST   100.0
 
 
 // Intermediate BNO data structs
@@ -93,7 +93,7 @@ void loop()
   // Get linear acceleration data from IMU, convert to two 8-bit integers
   bno.getEvent(&event, bno.VECTOR_LINEARACCEL);
   Serial.print("\nX lin: ");
-  Serial.print(event.acceleration.x);
+  Serial.print(event.acceleration.y);
   convert_to_int(event.acceleration.x, CANDBtx_accel.x, true);
   convert_to_int(event.acceleration.y, CANDBtx_accel.y, true);
   convert_to_int(event.acceleration.z, CANDBtx_accel.z, true);
@@ -105,11 +105,17 @@ void loop()
 
   // Get gyroscopic data from IMU, convert to two 8-bit integers
   bno.getEvent(&event, bno.VECTOR_GYROSCOPE);
+  Serial.print("\nX rot: ");
+  Serial.print(event.gyro.x);
   convert_to_int(event.gyro.x, CANDBtx_gyro.x, false);
   convert_to_int(event.gyro.y, CANDBtx_gyro.y, false);
   convert_to_int(event.gyro.z, CANDBtx_gyro.z, false);
+  Serial.print("\t");
+  Serial.print(CANDBtx_gyro.x.top);
+  Serial.print("\t");
+  Serial.print(CANDBtx_gyro.x.bot);
 
-  delay(100);
+  delay(10);
 }
 
 
