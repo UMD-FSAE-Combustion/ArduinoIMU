@@ -1,8 +1,11 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <FlexCAN_T4.h>
+#include <Adafruit_sensor.h>
 #include <Adafruit_BNO055.h>
 #include <SPI.h>
 #include <TeensyThreads.h>
+#include <imumaths.h>
 
 
 // PIN, BAUDRATE and CAN ID definitions
@@ -18,7 +21,7 @@
 #define SET_GYRO    0x0A
 // CONSTANTS FOR FLOAT->UINT CONVERSION
 #define ACC_CONST   100.0
-#define GYR_CONST   100.0
+#define GYR_CONST   16.0
 
 
 // Intermediate BNO data structs
@@ -55,14 +58,14 @@ void setup() {
 
   // put your setup code here, to run once:
 
-  if(!bno.begin()) {
+  if(!bno.begin(OPERATION_MODE_ACCGYRO)) {
     /* There was a problem detecting the BNO055 ... check your connections */
     Serial.print("Oops, no BNO055 detected ... Check your wiring or I2C ADDR.");
     while(1);
   }
 
   //----------Configure BNO055----------//
-  /*if(!bno_write(BNO_ADDR, BNO_PGSEL, 0x01)) {
+  if(!bno_write(BNO_ADDR, BNO_PGSEL, 0x01)) {
     Serial.print("Configuring sensitivity ranges ...");
     while(1);
   }
@@ -77,7 +80,7 @@ void setup() {
   if(!bno_write(BNO_ADDR, BNO_PGSEL, 0x00)) {
     Serial.print("/nWrapping up ...");
     while(1);
-  }*/
+  }
 
   // Starts CAN comms at a select Baudrate of the ECU
   Can0.begin();
@@ -91,7 +94,7 @@ void loop()
   sensors_event_t event;
 
   // Get linear acceleration data from IMU, convert to two 8-bit integers
-  bno.getEvent(&event, bno.VECTOR_LINEARACCEL);
+  bno.getEvent(&event, bno.VECTOR_ACCELERATION);
   Serial.print("\nX lin: ");
   Serial.print(event.acceleration.y);
   convert_to_int(event.acceleration.x, CANDBtx_accel.x, true);
