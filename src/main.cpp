@@ -36,7 +36,7 @@
 #define GYRZ_HI     0x19*/
 // CONSTANTS FOR FLOAT->UINT CONVERSION
 #define ACC_CONST   104.223     // Convert m/s^2 to milli-g + 2.25% error correction
-#define GYR_CONST   100.0        // Apply a gain of 100 for better resolution
+#define GYR_CONST   57.296      // Convert rad/s to deg/s <= NOT SURE OF VALIDITY - TRIPLE-CHECK!
 
 
 // CAN 16-bit struct, gyro struct and accel struct
